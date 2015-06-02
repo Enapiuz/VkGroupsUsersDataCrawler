@@ -1,5 +1,6 @@
 import sys
 import argparse
+from grab.selector import XpathSelector
 from grab.spider import Spider, Task
 import requests
 import xlsxwriter
@@ -28,7 +29,7 @@ class VkSpider(Spider):
     def task_generator(self):
         vk_url = 'https://vk.com/id{0}'
         for user_id in self.ids:
-            yield Task('parse_page', url=vk_url.format(user_id))
+            yield Task('parse_page', url=vk_url.format(user_id), user_id=user_id)
 
         if global_debug:
             print('Parsed pages: {0}'.format(self.parsed))
@@ -44,14 +45,21 @@ class VkSpider(Spider):
             pass
 
         try:
+            user_id = task.user_id
             username = grab.doc.select('//*[@id="profile_info"]/h4/div[contains(@class, "page_name")]').text()
             city = grab.doc.select(
-                "//*[@id='profile_full_info']//div[contains(@class, 'clear_fix') and div[@class='label fl_l'] = 'Город:']/div[@class='labeled fl_l']/a").text()
+                "//*[@id='profile_full_info']//div[contains(@class, 'clear_fix') and div[@class='label fl_l'] = 'Город:']/div[@class='labeled fl_l']/a")\
+                .one(default=XpathSelector('')).text()
+            languages = grab.doc.select(
+                "//*[@id='profile_info']//div[contains(@class, 'clear_fix') and div[@class='label fl_l'] = 'Языки:']/div[@class='labeled fl_l']/a")\
+                .one(default=XpathSelector('')).text()
             if global_debug:
-                print((username, city))
+                print((user_id, username, city, languages))
             self.cur_col += 1
-            self.ws.write(self.cur_col, 0, username)
-            self.ws.write(self.cur_col, 1, city)
+            self.ws.write(self.cur_col, 0, user_id)
+            self.ws.write(self.cur_col, 1, username)
+            self.ws.write(self.cur_col, 2, city)
+            self.ws.write(self.cur_col, 3, languages)
 
             self.parsed += 1
         except Exception:
