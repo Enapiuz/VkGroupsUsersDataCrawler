@@ -4,6 +4,8 @@ from grab.spider import Spider, Task
 import requests
 import xlsxwriter
 
+global_debug = False
+
 
 class VkSpider(Spider):
     __slots__ = ['ids', 'wb', 'ws', 'cur_col', 'parsed']
@@ -28,23 +30,28 @@ class VkSpider(Spider):
         for user_id in self.ids:
             yield Task('parse_page', url=vk_url.format(user_id))
 
-        print('Parsed pages: {0}'.format(self.parsed))
+        if global_debug:
+            print('Parsed pages: {0}'.format(self.parsed))
         self.wb.close()
 
     def task_parse_page(self, grab, task):
         try:
             if len(grab.doc.select('//*[@id="profile_info"]/h4/div[contains(@class, "profile_deleted")]').text()) > 0:
-                print("-- Hidden user's page")
+                if global_debug:
+                    print("-- Hidden user's page")
                 return
         except Exception:
             pass
 
         try:
             username = grab.doc.select('//*[@id="profile_info"]/h4/div[contains(@class, "page_name")]').text()
-            city = grab.doc.select("//*[@id='profile_full_info']//div[contains(@class, 'clear_fix') and div[@class='label fl_l'] = 'Город:']/div[@class='labeled fl_l']/a").text()
-            print((username, city))
+            city = grab.doc.select(
+                "//*[@id='profile_full_info']//div[contains(@class, 'clear_fix') and div[@class='label fl_l'] = 'Город:']/div[@class='labeled fl_l']/a").text()
+            if global_debug:
+                print((username, city))
             self.cur_col += 1
             self.ws.write(self.cur_col, 0, username)
+            self.ws.write(self.cur_col, 1, city)
 
             self.parsed += 1
         except Exception:
@@ -63,16 +70,18 @@ if __name__ == '__main__':
     argParser.add_argument('-g', '--group')
     args = argParser.parse_args()
     group = args.group or ''
+    global_debug = True
 
     if len(group) == 0:
-        sys.exit('Usage: (-g group_name_or_id)')
+        sys.exit(1)
 
     while offset < max_users:
         r = requests.get(pattern.format(group, count, offset))
         req = r.json()
         offset += count
         if 'response' in req:
-            print('Current {0}, total {1}'.format(offset, req['response']['count']))
+            if global_debug:
+                print('Current {0}, total {1}'.format(offset, req['response']['count']))
 
             if 'count' in req['response']:
                 max_users = req['response']['count']
@@ -83,6 +92,7 @@ if __name__ == '__main__':
     print('Total users: {0}. Set: {1}'.format(len(myset), myset))
 
     if len(myset) > 0:
-        print('Starting spider...')
+        if global_debug:
+            print('Starting spider...')
         s = VkSpider(myset)
         s.run()
